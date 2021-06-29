@@ -1,0 +1,186 @@
+start SQL shell (psql) command line editor and login
+Server [localhost]: localhost
+Database [postgres]: postgres
+Port [5432]: 5432
+Username [postgres]: postgres
+Passwort für Benutzer postgres:
+
+If you have installed PostgreSQL under Windows you will receive an error massage
+psql (13.3)
+Warnung: Konsolencodeseite (850) unterscheidet sich von der Windows-
+         Codeseite (1252). 8-Bit-Zeichen funktionieren möglicherweise nicht
+         richtig. Einzelheiten finden Sie auf der psql-Handbuchseite unter
+         »Notes for Windows users«.
+Geben Sie »help« für Hilfe ein.
+
+enter
+\! chcp 1251
+to resolve the warning.
+The Aktive Codepage is now: 1251.
+
+--- create database and tables in PostgreSQL
+
+run sql query
+\i path/to/file/bdd_create.sql
+
+output if no error occured:
+Sie sind jetzt verbunden mit der Datenbank »postgres« als Benutzer »postgres«.
+DROP DATABASE
+CREATE DATABASE
+Sie sind jetzt verbunden mit der Datenbank »ovya_recrutement« als Benutzer »postgres«.
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+              Liste der Relationen
+ Schema |      Name      |   Typ   | Eigentьmer
+--------+----------------+---------+------------
+ public | acq            | Tabelle | postgres
+ public | acq_id_seq     | Sequenz | postgres
+ public | ccial          | Tabelle | postgres
+ public | ccial_id_seq   | Sequenz | postgres
+ public | dossier        | Tabelle | postgres
+ public | dossier_id_seq | Sequenz | postgres
+ public | visite         | Tabelle | postgres
+ public | visite_id_seq  | Sequenz | postgres
+(8 Zeilen)
+
+
+--- populate database
+
+if no prompt ovya_recrutement=#
+\c ovya_recrutement
+\i path/to/file/bdd_populate.sql
+
+
+output if no error occured:
+BEGIN
+TRUNCATE TABLE
+INSERT 0 10042
+INSERT 0 4001
+INSERT 0 80
+INSERT 0 2252
+UPDATE 2252
+INSERT 0 5
+INSERT 0 13850
+INSERT 0 1
+COMMIT
+
+---- insert row
+Donald Knuth <dknuth@fsf.org> avec le mot de passe leonidasguibas
+
+INSERT INTO acq (nom, email, password)
+VALUES('Donald Knuth','dknuth@fsf.org','leonidasguibas') 
+ON CONFLICT (email) 
+DO NOTHING;
+
+---- select Donald Knuth
+
+SELECT
+	nom, email, password
+FROM
+	acq
+WHERE
+	email = 'dknuth@fsf.org' AND 
+    password = password;
+
+result;
+     nom      |     email      |    password
+--------------+----------------+----------------
+ Donald Knuth | dknuth@fsf.org | leonidasguibas
+(1 Zeile)
+
+--- requête SQL qui permet de récupérer les informations suivantes pour les commerciaux 
+qui ont plus de 5 de visites dans la même journée.
+
+SELECT
+	DATE(date_start), ccial_id, COUNT(DATE(date_start)) AS visite_nb, ARRAY_AGG (dossier_id) dossier_ids
+FROM
+	visite 
+GROUP BY
+	ccial_id,
+	DATE(date_start)
+HAVING COUNT(DATE(date_start)) > 5;
+
+output for my data (I modified the dates a little, because the origin bdd_populate.sql ran on error)
+    date    | ccial_id | visite_nb |           dossier_ids
+------------+----------+-----------+---------------------------------
+ 2014-07-15 |      103 |         6 | {496,498,498,2201,480,1029}
+ 2014-07-07 |      112 |         6 | {1613,1625,1625,1640,1614,1623}
+ 2014-03-03 |      116 |         6 | {2067,2067,2047,2069,2069,2047}
+ 2013-12-14 |      155 |         6 | {1706,1691,1691,1676,1703,1696}
+ 2014-02-23 |      157 |         6 | {1525,1550,290,1558,1549,1520}
+
+
+--- IMPROVEMENT TO KEEP HISTORY
+
+In order to keep the history of database changes on could create an history table and implement some triggers. 
+Here an example for table acq:
+
+CREATE TABLE IF NOT EXISTS acq_history (
+	id serial PRIMARY KEY,
+	nom TEXT NOT NULL,
+	changed_on TIMESTAMP NOT NULL 
+);
+
+Trigger Function for name changes:
+
+CREATE OR REPLACE FUNCTION log_name_changes()
+  RETURNS TRIGGER 
+  LANGUAGE PLPGSQL
+  AS
+$$
+BEGIN
+	IF NEW.nom <> OLD.nom THEN
+		 INSERT INTO acq_history(nom,changed_on)
+		 VALUES(OLD.nom,now());
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+	
+
+After the table creation we could create a trigger (here UPDATE only)
+
+CREATE TRIGGER last_name_changes
+  BEFORE UPDATE
+  ON acq
+  FOR EACH ROW
+  EXECUTE PROCEDURE log_name_changes();
+  
+
+After executing the following command
+INSERT INTO acq (nom, email)
+VALUES ('John', 'test01@test.com');
+
+UPDATE acq
+SET nom = 'Georges'
+WHERE id = 56175;
+  
+  
+my_test=# select * from acq_history;
+ id | nom  |         changed_on
+----+------+----------------------------
+  1 | John | 2021-06-27 18:26:07.460449  
+  
+  
+#----------------------------------------------- 
+  
+In order to perform a better the data selection , I set the following index:
+
+CREATE INDEX email_idx ON acq (email);
+
+Form: client.php with template vFORM.tpl
+creates a new dossier for the custumer and adds a new visite to the buyer (visitor)
+
+Form: buyer.php with template delFORM.tpl
+deletes the buyer with all his visits from the database.
+
+
+
+
