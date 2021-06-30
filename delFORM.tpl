@@ -4,7 +4,10 @@
 <meta http-equiv="content-type" content="text/html; 
       charset=ISO-8859-1">
 <title>Buyer (delete) </title>
+<!--
 <link rel="stylesheet" type="text/css" href="styles.css">
+-->
+<link rel="stylesheet" href="style.css">
 </head>
 
 <body>
